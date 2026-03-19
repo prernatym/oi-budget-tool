@@ -249,3 +249,28 @@ def _dc_mode(text):
     if re.search(r"\*\*Online\*\*", text, re.IGNORECASE):
         return "online"
     return "field"
+
+
+def extract_query_doc(docx_path: str) -> dict:
+    """
+    Extract clarification data from a Query Document.
+    Returns a partial schema dict — only keys that are found.
+    """
+    text = _get_text(docx_path)
+    result = {}
+
+    fgds = _qual_count(text, "FGD")
+    idis = _qual_count(text, "IDI")
+    if fgds > 0: result["num_fgds"] = fgds
+    if idis > 0: result["num_idis"] = idis
+
+    sample = _sample_size(text)
+    if sample > 0: result["sample_size"] = sample
+
+    langs = _languages(text)
+    if langs: result["languages"] = langs
+
+    blocks = _num_blocks(text)
+    if blocks > 1: result["num_blocks"] = blocks
+
+    return result
