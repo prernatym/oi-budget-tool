@@ -274,3 +274,74 @@ def extract_query_doc(docx_path: str) -> dict:
     if blocks > 1: result["num_blocks"] = blocks
 
     return result
+
+
+def extract_fin_proposal(file_path: str) -> dict:
+    """
+    Extract from financial proposal (docx or pdf).
+    Returns schema fields from assumptions + quoted totals for validation.
+    """
+    # Try pandoc for both docx and pdf
+    try:
+        text = _get_text(file_path)
+    except Exception:
+        return {}
+
+    result = {}
+
+    # ── Schema fields from assumptions ──────────────────────────────
+    fgds = _qual_count(text, "FGD")
+    idis = _qual_count(text, "IDI")
+    if fgds > 0: result["num_fgds"] = fgds
+    if idis > 0: result["num_idis"] = idis
+
+    sample = _sample_size(text)
+    if sample > 0: result["sample_size"] = sample
+
+    langs = _languages(text)
+    if langs: result["languages"] = langs
+
+    states = _states(text)
+    if states and states != ["State 1"]: result["states"] = states
+
+    blocks = _num_blocks(text)
+    if blocks > 1: result["num_blocks"] = blocks
+
+    timeline = _timeline(text)
+    if timeline: result["timeline_months"] = timeline
+
+    # Study type
+    stype = _study_type(text)
+    if stype: result["study_type"] = stype
+
+    # Components from deliverables / assumptions section
+    comps = _components(text)
+    if comps: result["components"] = comps
+
+    # ── Quoted totals for validation ─────────────────────────────────
+    # Look for INR/USD amounts next to standard section names
+    totals = {}
+    section_patterns = [
+        ("study_prep",    r"Study Preparation[^\n]*?([\d,]+)"),
+        ("researcher_days", r"Researcher and field workers? days[^\n]*?([\d,]+)"),
+        ("training",      r"Training[^\n]*?([\d,]+)"),
+        ("logistics",     r"Logistics[^\n]*?([\d,]+)"),
+        ("data_mgmt",     r"Data management[^\n]*?([\d,]+)"),
+        ("devices",       r"Devices[^\n]*?([\d,]+)"),
+        ("admin",         r"Administrative[^\n]*?([\d,]+)"),
+        ("project_total", r"PROJECT COSTS[^\n]*?([\d,]+)"),
+        ("taxes",         r"Tax(?:es)?[^\n]*?([\d,]+)"),
+        ("grand_total",   r"Costs including (?:taxes|forex)[^\n]*?([\d,]+)"),
+    ]
+    for key, pattern in section_patterns:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            try:
+                totals[key] = int(m.group(1).replace(",", ""))
+            except ValueError:
+                pass
+
+    if totals:
+        result["quoted_totals"] = totals
+
+    return result
